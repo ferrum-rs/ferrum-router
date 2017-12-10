@@ -5,26 +5,26 @@ use std::ops::{Deref, DerefMut};
 use ferrum::Handler;
 use regex::Regex;
 
-pub type TypeCollection = HashMap<String, String>;
+pub type TypeCollection<'a> = HashMap<&'a str, &'a str>;
 
 #[derive(Default)]
-pub struct Types(pub TypeCollection);
+pub struct Types<'a>(pub TypeCollection<'a>);
 
-impl Types {
+impl<'a> Types<'a> {
     pub fn default_type() -> &'static str {
         "[^/.]+"
     }
 }
 
-impl Deref for Types {
-    type Target = TypeCollection;
+impl<'a> Deref for Types<'a> {
+    type Target = TypeCollection<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for Types {
+impl<'a> DerefMut for Types<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -75,7 +75,7 @@ impl Recognizer {
                                     })?;
 
                                     let mut param_type_regex_string = String::from("(");
-                                    if let Some(regex_string) = types.get(&param_type) {
+                                    if let Some(regex_string) = types.get(param_type.as_str()) {
                                         param_type_regex_string += regex_string;
                                     } else {
                                         param_type_regex_string += Types::default_type();
@@ -154,7 +154,7 @@ mod test {
         assert!(!regex.is_match("/posts/new/test"));
         assert_eq!(params, vec!["id".to_string()]);
 
-        types.insert("id".to_string(), "[0-9]+".to_string());
+        types.insert("id", "[0-9]+");
         let (regex, params) = Recognizer::parse_glob("/posts/{id}", &types).unwrap();
 
         assert!(!regex.is_match(""));
@@ -162,6 +162,22 @@ mod test {
         assert!(!regex.is_match("/"));
         assert!(regex.is_match("/posts/12"));
         assert!(regex.is_match("/posts/12/"));
+        assert!(!regex.is_match("/posts/12a"));
+        assert!(!regex.is_match("/posts/12/test"));
+        assert!(!regex.is_match("/posts/new"));
+        assert!(!regex.is_match("/posts/new/"));
+        assert!(!regex.is_match("/posts/new/test"));
+        assert_eq!(params, vec!["id".to_string()]);
+
+        types.insert("number", "[0-9]+");
+        let (regex, params) = Recognizer::parse_glob("/posts/{id:number}", &types).unwrap();
+
+        assert!(!regex.is_match(""));
+        assert!(!regex.is_match("test"));
+        assert!(!regex.is_match("/"));
+        assert!(regex.is_match("/posts/12"));
+        assert!(regex.is_match("/posts/12/"));
+        assert!(!regex.is_match("/posts/12a"));
         assert!(!regex.is_match("/posts/12/test"));
         assert!(!regex.is_match("/posts/new"));
         assert!(!regex.is_match("/posts/new/"));
