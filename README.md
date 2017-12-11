@@ -58,6 +58,15 @@ Note that for benchmarking you should make sure to use the `--release` flag,
 which will cause cargo to compile the entire toolchain with optimizations.
 Without `--release` you will get truly sad numbers.
 
+## Benches
+
+To run benchmark tests, please use Rust nightly toolchain:
+
+```
+rustup default nightly
+cargo bench --features "nightly"
+```
+
 ## License
 
 MIT
