@@ -1,34 +1,10 @@
-use std::collections::HashMap;
 use std::error::Error;
-use std::ops::{Deref, DerefMut};
 
 use ferrum::Handler;
 use regex::Regex;
 
-pub type TypeCollection<'a> = HashMap<&'a str, &'a str>;
-
-#[derive(Default)]
-pub struct Types<'a>(pub TypeCollection<'a>);
-
-impl<'a> Types<'a> {
-    pub fn default_type() -> &'static str {
-        "[^/.]+"
-    }
-}
-
-impl<'a> Deref for Types<'a> {
-    type Target = TypeCollection<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a> DerefMut for Types<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+pub mod types;
+pub use self::types::*;
 
 pub type RecognizerResult<T = Recognizer> = Result<T, Box<Error>>;
 
