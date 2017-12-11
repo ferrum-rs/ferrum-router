@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn parse_glob_single_params() {
         let mut types = Types::default();
-        let (regex, params) = Recognizer::parse_glob("/posts/{id}", &types).unwrap();
+        let (regex, params) = Recognizer::parse_glob("/posts/{name}", &types).unwrap();
 
         assert!(!regex.is_match(""));
         assert!(!regex.is_match("test"));
@@ -152,37 +152,32 @@ mod tests {
         assert!(regex.is_match("/posts/new"));
         assert!(regex.is_match("/posts/new/"));
         assert!(!regex.is_match("/posts/new/test"));
-        assert_eq!(params, vec!["id".to_string()]);
+        assert_eq!(params, vec!["name".to_string()]);
 
+        let globs = vec![
+            "/posts/{id}",
+            "/posts/{id:number}",
+            "/posts/{ id: number }",
+            "/posts/{ id:   number  }",
+        ];
         types.insert("id", "[0-9]+");
-        let (regex, params) = Recognizer::parse_glob("/posts/{id}", &types).unwrap();
-
-        assert!(!regex.is_match(""));
-        assert!(!regex.is_match("test"));
-        assert!(!regex.is_match("/"));
-        assert!(regex.is_match("/posts/12"));
-        assert!(regex.is_match("/posts/12/"));
-        assert!(!regex.is_match("/posts/12a"));
-        assert!(!regex.is_match("/posts/12/test"));
-        assert!(!regex.is_match("/posts/new"));
-        assert!(!regex.is_match("/posts/new/"));
-        assert!(!regex.is_match("/posts/new/test"));
-        assert_eq!(params, vec!["id".to_string()]);
-
         types.insert("number", "[0-9]+");
-        let (regex, params) = Recognizer::parse_glob("/posts/{id:number}", &types).unwrap();
 
-        assert!(!regex.is_match(""));
-        assert!(!regex.is_match("test"));
-        assert!(!regex.is_match("/"));
-        assert!(regex.is_match("/posts/12"));
-        assert!(regex.is_match("/posts/12/"));
-        assert!(!regex.is_match("/posts/12a"));
-        assert!(!regex.is_match("/posts/12/test"));
-        assert!(!regex.is_match("/posts/new"));
-        assert!(!regex.is_match("/posts/new/"));
-        assert!(!regex.is_match("/posts/new/test"));
-        assert_eq!(params, vec!["id".to_string()]);
+        for glob in globs {
+            let (regex, params) = Recognizer::parse_glob(glob, &types).unwrap();
+
+            assert!(!regex.is_match(""), glob);
+            assert!(!regex.is_match("test"), glob);
+            assert!(!regex.is_match("/"), glob);
+            assert!(regex.is_match("/posts/12"), glob);
+            assert!(regex.is_match("/posts/12/"), glob);
+            assert!(!regex.is_match("/posts/12a"), glob);
+            assert!(!regex.is_match("/posts/12/test"), glob);
+            assert!(!regex.is_match("/posts/new"), glob);
+            assert!(!regex.is_match("/posts/new/"), glob);
+            assert!(!regex.is_match("/posts/new/test"), glob);
+            assert_eq!(params, vec!["id".to_string()]);
+        }
     }
 
     #[cfg(all(test, feature = "nightly"))]
