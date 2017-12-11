@@ -1,5 +1,6 @@
 //#![deny(missing_docs)]
 //#![cfg_attr(test, deny(warnings))]
+#![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 //! `Router` provides fast and flexible routing for Ferrum.
 

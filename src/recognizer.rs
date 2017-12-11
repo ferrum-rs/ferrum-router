@@ -104,7 +104,7 @@ impl Recognizer {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
@@ -183,5 +183,22 @@ mod test {
         assert!(!regex.is_match("/posts/new/"));
         assert!(!regex.is_match("/posts/new/test"));
         assert_eq!(params, vec!["id".to_string()]);
+    }
+
+    #[cfg(all(test, feature = "nightly"))]
+    mod benches {
+        extern crate test;
+
+        use super::*;
+
+        #[bench]
+        fn parse_glob_benchmark(bencher: &mut test::Bencher) {
+            let mut types = Types::default();
+            types.insert("number", "[0-9]+");
+
+            bencher.iter(|| {
+                Recognizer::parse_glob("/posts/{id:number}", &types).unwrap()
+            });
+        }
     }
 }

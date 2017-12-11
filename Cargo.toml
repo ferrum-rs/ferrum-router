@@ -15,3 +15,6 @@ ferrum = "0.2"
 url = "1.6"
 route-recognizer = "0.1"
 regex = "0.2"
+
+[features]
+nightly = []
