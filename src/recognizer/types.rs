@@ -7,8 +7,11 @@ pub type TypesCollection<'a> = HashMap<&'a str, &'a str>;
 pub struct Types<'a>(pub TypesCollection<'a>);
 
 impl<'a> Types<'a> {
+    pub const STRING_TYPE: &'static str = "[^/.]+";
+    pub const NUMBER_TYPE: &'static str = "[0-9]+";
+
     pub fn default_type() -> &'static str {
-        "[^/.]+"
+        Types::STRING_TYPE
     }
 }
 

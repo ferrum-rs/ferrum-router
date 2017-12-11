@@ -137,7 +137,7 @@ mod tests {
             "/posts/{ id:   number  }",
         ];
         types.insert("id", "[0-9]+");
-        types.insert("number", "[0-9]+");
+        types.insert("number", Types::NUMBER_TYPE);
 
         for glob in globs {
             let (regex, params) = Recognizer::parse_glob(glob, &types).unwrap();
