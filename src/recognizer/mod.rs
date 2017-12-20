@@ -15,8 +15,10 @@ pub struct Recognizer {
 }
 
 impl Recognizer {
-    pub fn new<S>(glob: S, handler: Box<Handler>, types: &Types) -> RecognizerResult
-        where S: AsRef<str>
+    pub fn new<S, N, P>(glob: S, handler: Box<Handler>, types: &Types<N, P>) -> RecognizerResult
+        where S: AsRef<str>,
+              N: TypeName,
+              P: TypePattern
     {
         let (glob_regex, param_names) = Recognizer::parse_glob(glob.as_ref(), types)?;
         Ok(Recognizer {
@@ -26,7 +28,10 @@ impl Recognizer {
         })
     }
 
-    pub fn parse_glob(glob: &str, types: &Types) -> RecognizerResult<(Regex, Vec<String>)> {
+    pub fn parse_glob<N, P>(glob: &str, types: &Types<N, P>) -> RecognizerResult<(Regex, Vec<String>)>
+        where N: TypeName,
+              P: TypePattern
+    {
         let mut param_names = Vec::<String>::new();
         let mut pattern = "^".as_bytes().to_vec();
 
@@ -52,9 +57,9 @@ impl Recognizer {
 
                                     let mut param_type_regex_string = String::from("(");
                                     if let Some(regex_string) = types.get(param_type.as_str()) {
-                                        param_type_regex_string += regex_string;
+                                        param_type_regex_string += regex_string.as_ref();
                                     } else {
-                                        param_type_regex_string += Types::default_type();
+                                        param_type_regex_string += Type::STRING;
                                     }
                                     param_type_regex_string += ")";
                                     pattern.extend(param_type_regex_string.as_bytes().iter());
@@ -85,7 +90,7 @@ mod tests {
 
     #[test]
     fn parse_glob_direct() {
-        let types = Types::default();
+        let types = Types::<String, String>::default();
         let (regex, params) = Recognizer::parse_glob("", &types).unwrap();
 
         assert!(!regex.is_match("test"));
@@ -137,7 +142,7 @@ mod tests {
             "/posts/{ id:   number  }",
         ];
         types.insert("id", "[0-9]+");
-        types.insert("number", Types::NUMBER_TYPE);
+        types.insert("number", Type::NUMBER);
 
         for glob in globs {
             let (regex, params) = Recognizer::parse_glob(glob, &types).unwrap();

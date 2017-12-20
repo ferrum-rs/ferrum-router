@@ -1,30 +1,28 @@
-extern crate iron;
-extern crate router;
+/*
+extern crate ferrum;
+extern crate ferrum_router;
 
 // To run, $ cargo run --example simple
 // To use, go to http://localhost:3000/test and see output "test"
 // Or, go to http://localhost:3000 to see a default "OK"
 
-use iron::{Iron, Request, Response, IronResult};
-use iron::status;
-use router::{Router};
+use ferrum::{Ferrum, FerrumResult, mime, Request, Response};
+use ferrum_router::{Router};
 
+fn handler(_: &mut Request) -> FerrumResult<Response> {
+    Ok(Response::new().with_content("OK", mime::TEXT_PLAIN))
+}
+
+fn query_handler(request: &mut Request) -> FerrumResult<Response> {
+    let ref query = request.extensions.get::<Router>()
+        .unwrap().find("query").unwrap_or("/");
+    Ok(Response::new().with_content(*query, mime::TEXT_PLAIN))
+}
+*/
 fn main() {
-    let mut router = Router::new();
-    router.get("/", handler, "handler");
-    router.get("/:query", query_handler, "query_handler");
-
-    Iron::new(router).http("localhost:3000").unwrap();
-
-    fn handler(_: &mut Request) -> IronResult<Response> {
-        Ok(Response::with((status::Ok, "OK")))
-    }
-
-    fn query_handler(req: &mut Request) -> IronResult<Response> {
-        let ref query = req.extensions.get::<Router>()
-            .unwrap().find("query").unwrap_or("/");
-        Ok(Response::with((status::Ok, *query)))
-    }
-
-
+//    let mut router = Router::new();
+//    router.get("/", handler, "handler");
+//    router.get("/{query}", query_handler, "query_handler");
+//
+//    Ferrum::new(router).http("localhost:3000").unwrap();
 }
