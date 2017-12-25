@@ -4,7 +4,9 @@ use ferrum::Handler;
 use regex::Regex;
 
 pub mod types;
+pub mod glob;
 pub use self::types::*;
+pub use self::glob::*;
 
 pub type RecognizerResult<T = Recognizer> = Result<T, Box<Error>>;
 
@@ -59,7 +61,7 @@ impl Recognizer {
                                     if let Some(regex_string) = types.get(param_type.as_str()) {
                                         param_type_regex_string += regex_string.as_ref();
                                     } else {
-                                        param_type_regex_string += Type::STRING;
+                                        param_type_regex_string += Type::STRING_PATTERN;
                                     }
                                     param_type_regex_string += ")";
                                     pattern.extend(param_type_regex_string.as_bytes().iter());
@@ -142,7 +144,7 @@ mod tests {
             "/posts/{ id:   number  }",
         ];
         types.insert("id", "[0-9]+");
-        types.insert("number", Type::NUMBER);
+        types.insert("number", Type::NUMBER_PATTERN);
 
         for glob in globs {
             let (regex, params) = Recognizer::parse_glob(glob, &types).unwrap();
