@@ -1,45 +1,35 @@
-use std::borrow::Borrow;
-use std::marker::PhantomData;
-use recognizer::types::{DefaultTypes, NameDefaultType, PatternDefaultType, Types, TypeName, TypePattern};
+use recognizer::types::{GlobTypes, DefaultStore};
 
 #[derive(Default)]
-pub struct Glob<S, N = NameDefaultType, P = PatternDefaultType, T = DefaultTypes>
-    where T: Borrow<Types<N, P>>,
-          S: AsRef<[u8]>,
-          N: TypeName,
-          P: TypePattern
+pub struct Glob<S, T = DefaultStore>
+    where S: AsRef<[u8]>,
+          T: GlobTypes,
 {
     path: S,
     types: Option<T>,
-    phantom_n: PhantomData<N>,
-    phantom_p: PhantomData<P>,
 }
 
-impl<S, N, P, T> Glob<S, N, P, T>
-    where T: Borrow<Types<N, P>>,
-          S: AsRef<[u8]>,
-          N: TypeName,
-          P: TypePattern
+impl<S, T> Glob<S, T>
+    where S: AsRef<[u8]>,
+          T: GlobTypes,
 {
-    fn new(path: S, types: Option<T>) -> Self {
+    pub fn new(path: S, types: Option<T>) -> Self {
         Glob {
             path,
             types,
-            phantom_n: PhantomData,
-            phantom_p: PhantomData
         }
     }
 
-    fn path(&self) -> &[u8] {
+    pub fn path(&self) -> &[u8] {
         self.path.as_ref()
     }
 
-    fn types(&self) -> Option<&T> {
+    pub fn types(&self) -> Option<&T> {
         self.types.as_ref()
     }
 }
 
-impl<S> From<S> for Glob<S, NameDefaultType, PatternDefaultType, DefaultTypes>
+impl<S> From<S> for Glob<S, DefaultStore>
     where S: AsRef<[u8]>
 {
     fn from(path: S) -> Self {
@@ -47,11 +37,9 @@ impl<S> From<S> for Glob<S, NameDefaultType, PatternDefaultType, DefaultTypes>
     }
 }
 
-impl<S, N, P, T> From<(S, T)> for Glob<S, N, P, T>
+impl<S, T> From<(S, T)> for Glob<S, T>
     where S: AsRef<[u8]>,
-          N: TypeName,
-          P: TypePattern,
-          T: Borrow<Types<N, P>>
+          T: GlobTypes,
 {
     fn from(pair: (S, T)) -> Self {
         let (path, types) = pair;
@@ -62,20 +50,19 @@ impl<S, N, P, T> From<(S, T)> for Glob<S, N, P, T>
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Debug;
-    use std::cmp::PartialEq;
+    use std::borrow::Borrow;
     use super::*;
+    use recognizer::types::Store;
 
-    fn assert_glob_key<'a, G, S, N, P, T>(glob: G, key: N, expected: P)
-        where G: Into<Glob<S, N, P, T>>,
+    fn assert_glob_key<'a, G, S, T>(glob: G, key: <T as GlobTypes>::Name, expected: <T as GlobTypes>::Pattern)
+        where G: Into<Glob<S, T>>,
               S: AsRef<[u8]> + 'a,
-              N: TypeName + 'a,
-              P: TypePattern + Debug + PartialEq + 'a,
-              T: Borrow<Types<N, P>> + 'a
+              T: GlobTypes + 'a,
     {
         let glob = glob.into();
-        let types = glob.types().unwrap().borrow();
-        assert_eq!(*types.get(key.borrow()).unwrap(), expected);
+        let types = glob.types().unwrap().store();
+        let value = types.get(key.borrow()).unwrap();
+        assert_eq!(value.as_ref(), expected.as_ref());
     }
 
     #[test]
@@ -101,21 +88,21 @@ mod tests {
         assert!(glob.types().is_none());
 
 
-        let types_default = DefaultTypes::default();
-        let types_string = Types::<String, String>::default();
+        let types_default = DefaultStore::default();
+        let types_string = Store::<String, String>::default();
 
-        let glob: Glob<_, _, _, &DefaultTypes> = Glob::from((glob_str, &types_default));
+        let glob: Glob<_, &DefaultStore> = Glob::from((glob_str, &types_default));
         assert_eq!(glob.path(), glob_str.as_bytes());
         assert!(glob.types().is_some());
-        assert_eq!(&glob.types().unwrap().0, &types_default.0);
+        assert_eq!(glob.types().unwrap().store(), &types_default);
 
         let glob = Glob::from((glob_str, &types_string));
         assert_eq!(glob.path(), glob_str.as_bytes());
         assert!(glob.types().is_some());
         let types = glob.types().unwrap();
-        assert_eq!(&types.0, &types_string.0);
+        assert_eq!(types.store(), &types_string);
 
-        let mut types = Types::<&str, String>::default();
+        let mut types = Store::<&str, String>::default();
         types.insert("key", "value".to_string());
         assert_glob_key(("", &types), "key", "value".to_string());
         assert_glob_key(("", types), "key", "value".to_string());

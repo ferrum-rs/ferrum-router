@@ -17,7 +17,7 @@ pub struct Recognizer {
 }
 
 impl Recognizer {
-    pub fn new<S, N, P>(glob: S, handler: Box<Handler>, types: &Types<N, P>) -> RecognizerResult
+    pub fn new<S, N, P>(glob: S, handler: Box<Handler>, types: &Store<N, P>) -> RecognizerResult
         where S: AsRef<str>,
               N: TypeName,
               P: TypePattern
@@ -30,7 +30,7 @@ impl Recognizer {
         })
     }
 
-    pub fn parse_glob<N, P>(glob: &str, types: &Types<N, P>) -> RecognizerResult<(Regex, Vec<String>)>
+    pub fn parse_glob<N, P>(glob: &str, types: &Store<N, P>) -> RecognizerResult<(Regex, Vec<String>)>
         where N: TypeName,
               P: TypePattern
     {
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn parse_glob_direct() {
-        let types = Types::<String, String>::default();
+        let types = Store::<String, String>::default();
         let (regex, params) = Recognizer::parse_glob("", &types).unwrap();
 
         assert!(!regex.is_match("test"));
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn parse_glob_single_params() {
-        let mut types = Types::default();
+        let mut types = Store::default();
         let (regex, params) = Recognizer::parse_glob("/posts/{name}", &types).unwrap();
 
         assert!(!regex.is_match(""));
@@ -171,7 +171,7 @@ mod tests {
 
         #[bench]
         fn parse_glob_benchmark(bencher: &mut test::Bencher) {
-            let mut types = Types::default();
+            let mut types = Store::default();
             types.insert("number", "[0-9]+");
 
             bencher.iter(|| {
