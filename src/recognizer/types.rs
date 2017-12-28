@@ -26,6 +26,18 @@ impl<T: AsRef<str> + Send + Sync> TypePattern for T {}
 pub type Store<N, P> = HashMap<N, P>;
 
 pub type DefaultStore = Store<NameDefaultType, PatternDefaultType>;
+pub trait DefaultStoreBuild {
+    fn with_default_types() -> Self;
+}
+
+impl DefaultStoreBuild for DefaultStore {
+    fn with_default_types() -> Self {
+        let mut store = DefaultStore::new();
+        store.insert(Type::STRING_NAME, Type::STRING_PATTERN);
+        store.insert(Type::NUMBER_NAME, Type::NUMBER_PATTERN);
+        store
+    }
+}
 
 pub trait GlobTypes {
     type Name: TypeName;

@@ -5,8 +5,10 @@ use regex::Regex;
 
 pub mod types;
 pub mod glob;
+pub mod route_match;
 pub use self::types::*;
 pub use self::glob::*;
+pub use self::route_match::*;
 
 pub type RecognizerResult<T = Recognizer> = Result<T, Box<Error>>;
 
@@ -16,13 +18,22 @@ pub struct Recognizer {
     pub handler: Box<Handler>,
 }
 
+pub trait Recognize {
+    fn recognize<'a>(&'a self, path: &str) -> Option<RouteMatch<'a>>;
+}
+
 impl Recognizer {
-    pub fn new<S, N, P>(glob: S, handler: Box<Handler>, types: &Store<N, P>) -> RecognizerResult
-        where S: AsRef<str>,
+    pub fn new<G, N, P>(glob: G, handler: Box<Handler>, types: Option<&Store<N, P>>) -> RecognizerResult
+        where G: AsRef<[u8]>,
               N: TypeName,
               P: TypePattern
     {
-        let (glob_regex, param_names) = Recognizer::parse_glob(glob.as_ref(), types)?;
+        let types_default = DefaultStore::with_default_types();
+        let (glob_regex, param_names) = match types {
+            Some(types) => Recognizer::parse_glob(glob, types),
+            None => Recognizer::parse_glob(glob, &types_default)
+        }?;
+
         Ok(Recognizer {
             glob_regex,
             param_names,
@@ -30,14 +41,15 @@ impl Recognizer {
         })
     }
 
-    pub fn parse_glob<N, P>(glob: &str, types: &Store<N, P>) -> RecognizerResult<(Regex, Vec<String>)>
-        where N: TypeName,
+    pub fn parse_glob<G, N, P>(glob: G, types: &Store<N, P>) -> RecognizerResult<(Regex, Vec<String>)>
+        where G: AsRef<[u8]>,
+              N: TypeName,
               P: TypePattern
     {
         let mut param_names = Vec::<String>::new();
         let mut pattern = "^".as_bytes().to_vec();
 
-        let mut iter = glob.as_bytes().iter();
+        let mut iter = glob.as_ref().iter();
         while let Some(&bch) = iter.next() {
             match bch {
                 b'{' => {
@@ -83,6 +95,33 @@ impl Recognizer {
         let mut pattern = String::from_utf8(pattern)?;
         pattern += if pattern.chars().rev().next().unwrap_or('_') == '/' { "$" } else { "/?$" };
         Ok((Regex::new(&pattern)?, param_names))
+    }
+}
+
+impl Recognize for Recognizer {
+    fn recognize<'a>(&'a self, path: &str) -> Option<RouteMatch<'a>> {
+        if let Some(captures) = self.glob_regex.captures(path) {
+            let mut params = Params::new();
+            for name in self.param_names.iter() {
+                if let Some(param_match) = captures.name(name.as_str()) {
+                    params.insert(name.clone(), param_match.as_str().to_string());
+                }
+            }
+            Some(RouteMatch::new(&self.handler, params))
+        } else {
+            None
+        }
+    }
+}
+
+impl Recognize for Vec<Recognizer> {
+    fn recognize<'a>(&'a self, path: &str) -> Option<RouteMatch<'a>> {
+        for recognizer in self {
+            if let Some(route_match) = recognizer.recognize(path) {
+                return Some(route_match);
+            }
+        }
+        None
     }
 }
 

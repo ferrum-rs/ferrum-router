@@ -13,7 +13,7 @@ extern crate regex;
 //pub use recognizer::Params;
 //pub use url_for::url_for;
 
-//mod router;
+mod router;
 mod recognizer;
 //mod macros;
 //mod url_for;

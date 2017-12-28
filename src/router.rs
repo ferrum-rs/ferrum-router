@@ -7,12 +7,10 @@ use ferrum::{Request, Response, Handler, FerrumResult, FerrumError};
 use ferrum::{header, Method, StatusCode};
 use ferrum::typemap::Key;
 
-use recognizer::{Recognizer, Types, TypeName, TypePattern};
+use recognizer::{Glob, GlobTypes, Recognizer, Recognize, RouteMatch, Params,
+                 Store, DefaultStore, DefaultStoreBuild, TypeName, TypePattern};
 
-pub struct RouterInner<N, P>
-    where N: TypeName,
-          P: TypePattern
-{
+pub struct RouterInner {
     /// The routers, specialized by method.
     pub routers: HashMap<Method, Vec<Recognizer>>,
 
@@ -21,46 +19,32 @@ pub struct RouterInner<N, P>
 
     /// Used in URL generation.
     pub route_ids: HashMap<String, String>,
-
-    pub types: Types<N, P>,
 }
 
 /// `Router` provides an interface for creating complex routes as middleware
 /// for the Ferrum framework.
-pub struct Router<N, P>
-    where N: TypeName,
-          P: TypePattern
-{
-    inner: Arc<RouterInner<N, P>>
+pub struct Router {
+    inner: Arc<RouterInner>
 }
 
-impl<N, P> Router<N, P>
-    where N: TypeName,
-          P: TypePattern
-{
+impl Router {
     /// Construct a new, empty `Router`.
     ///
-    /// ```
-    /// # use router::Router;
+    /// ```ignore
+    /// use ferrum_router::Router;
     /// let router = Router::new();
     /// ```
-    pub fn new() -> Router<N, P> {
+    pub fn new() -> Router {
         Router {
             inner: Arc::new(RouterInner {
                 routers: HashMap::new(),
                 wildcard: Vec::new(),
                 route_ids: HashMap::new(),
-                types: Types(HashMap::new())
             })
         }
     }
 
-    pub fn with_types(self, types: Types<N, P>) -> Router<N, P> {
-        self.inner.types = types;
-        self
-    }
-
-    fn mut_inner(&mut self) -> &mut RouterInner<N, P> {
+    fn mut_inner(&mut self) -> &mut RouterInner {
         Arc::get_mut(&mut self.inner).expect("Cannot modify router at this point.")
     }
 
@@ -87,10 +71,12 @@ impl<N, P> Router<N, P>
     /// a `Chain`, a `Handler`, which contains an authorization middleware and
     /// a controller function, so that you can confirm that the request is
     /// authorized for this route before handling it.
-    pub fn route<S, H, I>(&mut self, method: Method, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn route<G, H, I, S, T>(&mut self, method: Method, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         // regex with capture groups
         // names of groups
@@ -98,105 +84,138 @@ impl<N, P> Router<N, P>
         // foo/{name}/{id:number} -> foo/([a-zA-Z_]+)/([0-9]+)
         // {name: <value>, id: <value>}
 
+        let glob = glob.into();
+        let types = glob.types().map(|types| types.store());
+//        let types_default = DefaultStore::with_default_types();
+//        let types = match glob.types() {
+//            Some(types) => types.store(),
+//            None => &types_default,
+//        };
+
         self.mut_inner().routers
             .entry(method)
             .or_insert(Vec::new())
-            .push(Recognizer::new(glob, Box::new(handler), &self.inner.types));
-        self.route_id(route_id.as_ref(), glob.as_ref());
+            .push(Recognizer::new(glob.path(), Box::new(handler), types).unwrap());
+        self.route_id(route_id.as_ref(), glob.path());
         self
     }
 
-    fn route_id(&mut self, id: &str, glob: &str) {
+    fn route_id(&mut self, id: &str, glob: &[u8]) {
         let inner = self.mut_inner();
         let ref mut route_ids = inner.route_ids;
 
         match route_ids.get(id) {
-            Some(other_glob) if glob != other_glob => panic!("Duplicate route_id: {}", id),
+            Some(other_glob) if glob != other_glob.as_bytes() => panic!("Duplicate route_id: {}", id),
             _ => ()
         };
 
-        route_ids.insert(id.to_owned(), glob.to_owned());
+        route_ids.insert(id.to_string(), String::from_utf8_lossy(glob).to_string());
     }
 
     /// Like route, but specialized to the `Get` method.
-    pub fn get<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn get<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Get, glob, handler, route_id)
     }
 
     /// Like route, but specialized to the `Post` method.
-    pub fn post<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn post<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Post, glob, handler, route_id)
     }
 
     /// Like route, but specialized to the `Put` method.
-    pub fn put<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn put<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Put, glob, handler, route_id)
     }
 
     /// Like route, but specialized to the `Delete` method.
-    pub fn delete<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn delete<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Delete, glob, handler, route_id)
     }
 
     /// Like route, but specialized to the `Head` method.
-    pub fn head<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn head<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Head, glob, handler, route_id)
     }
 
     /// Like route, but specialized to the `Patch` method.
-    pub fn patch<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn patch<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Patch, glob, handler, route_id)
     }
 
     /// Like route, but specialized to the `Options` method.
-    pub fn options<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn options<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
         self.route(Method::Options, glob, handler, route_id)
     }
 
     /// Route will match any method, including gibberish.
     /// In case of ambiguity, handlers specific to methods will be preferred.
-    pub fn any<S, H, I>(&mut self, glob: S, handler: H, route_id: I) -> &mut Router<N, P>
-        where S: AsRef<str>,
+    pub fn any<G, H, I, S, T>(&mut self, glob: G, handler: H, route_id: I) -> &mut Router
+        where G: Into<Glob<S, T>>,
               H: Handler,
-              I: AsRef<str>
+              I: AsRef<str>,
+              S: AsRef<[u8]>,
+              T: GlobTypes,
     {
-        self.mut_inner().wildcard.add(glob.as_ref(), Box::new(handler));
-        self.route_id(route_id.as_ref(), glob.as_ref());
+        let glob = glob.into();
+        let types = glob.types().map(|types| types.store());
+//        let types_default = DefaultStore::with_default_types();
+//        let types = match glob.types() {
+//            Some(types) => types.store(),
+//            None => &types_default,
+//        };
+
+        self.mut_inner().wildcard.push(Recognizer::new(glob.path(), Box::new(handler), types).unwrap());
+        self.route_id(route_id.as_ref(), glob.path());
         self
     }
 
-    fn recognize(&self, method: &Method, path: &str)
-                     -> Option<Match<&Box<Handler>>> {
-        self.inner.routers.get(method).and_then(|router| router.recognize(path).ok())
-            .or(self.inner.wildcard.recognize(path).ok())
+    fn recognize(&self, method: &Method, path: &str) -> Option<RouteMatch> {
+        self.inner.routers
+            .get(method)
+            .and_then(|recognizers| recognizers.recognize(path))
+            .or(self.inner.wildcard.recognize(path))
     }
 
     fn handle_options(&self, path: &str) -> Response {
@@ -213,8 +232,8 @@ impl<N, P> Router<N, P>
         let mut options = vec![];
 
         for method in METHODS.iter() {
-            self.inner.routers.get(method).map(|router| {
-                if let Some(_) = router.recognize(path).ok() {
+            self.inner.routers.get(method).map(|recognizers| {
+                if let Some(_) = recognizers.recognize(path) {
                     options.push(method.clone());
                 }
             });
@@ -230,78 +249,80 @@ impl<N, P> Router<N, P>
     }
 
     // Tests for a match by adding or removing a trailing slash.
-    fn redirect_slash(&self, request : &Request) -> Option<FerrumError> {
-        let mut uri = request.uri.clone();
-        let mut path: Vec<&str> = uri.path().split("/").collect();
+//    fn redirect_slash(&self, request : &Request) -> Option<FerrumError> {
+//        let mut uri = request.uri.clone();
+//        let mut path: Vec<&str> = uri.path().split("/").collect();
+//
+//        if let Some(last_char) = path.chars().last() {
+//            {
+//                let mut path_segments = uri.as_mut().path_segments_mut().unwrap();
+//                if last_char == '/' {
+//                    // We didn't recognize anything without a trailing slash; try again with one appended.
+//                    path.pop();
+//                    path_segments.pop();
+//                } else {
+//                    // We didn't recognize anything with a trailing slash; try again without it.
+//                    path.push('/');
+//                    path_segments.push("");
+//                }
+//            }
+//        }
+//
+//        self.recognize(&request.method, &path.iter().collect()).and(Some(
+//            FerrumError::new(
+//                TrailingSlash,
+//                Some(Response::new_redirect(url)
+//                    .with_status(StatusCode::MovedPermanently))
+//            )
+//        ))
+//    }
 
-        if let Some(last_char) = path.chars().last() {
-            {
-                let mut path_segments = uri.as_mut().path_segments_mut().unwrap();
-                if last_char == '/' {
-                    // We didn't recognize anything without a trailing slash; try again with one appended.
-                    path.pop();
-                    path_segments.pop();
-                } else {
-                    // We didn't recognize anything with a trailing slash; try again without it.
-                    path.push('/');
-                    path_segments.push("");
-                }
-            }
-        }
-
-        self.recognize(&request.method, &path).and(Some(
-            FerrumError::new(
-                TrailingSlash,
-                Response::new_redirect(url)
-                    .with_status(StatusCode::MovedPermanently)
-            )
-        ))
-    }
-
-    fn handle_method(&self, request: &mut Request, path: &str) -> Option<FerrumResult<Response>> {
-        if let Some(matched) = self.recognize(&request.method, path) {
-            request.extensions.insert::<Router<N, P>>(matched.params);
-            request.extensions.insert::<RouterInner<N, P>>(self.inner.clone());
+    fn handle_method(&self, request: &mut Request) -> Option<FerrumResult<Response>> {
+        if let Some(matched) = self.recognize(&request.method, request.uri.path()) {
+            request.extensions.insert::<Router>(matched.params);
+            request.extensions.insert::<RouterInner>(self.inner.clone());
             Some(matched.handler.handle(request))
         } else {
-            self.redirect_slash(request)
-                .and_then(|redirect| Some(Err(redirect)))
+//            self.redirect_slash(request)
+//                .and_then(|redirect| Some(Err(redirect)))
+            None
         }
     }
 }
 
-impl<N, P> Key for Router<N, P>
-    where N: TypeName + 'static,
-          P: TypePattern + 'static
-{
+impl Key for Router {
     type Value = Params;
 }
 
-impl<N, P> Key for RouterInner<N, P>
-    where N: TypeName + 'static,
-          P: TypePattern + 'static
-{
-    type Value = Arc<RouterInner<N, P>>;
+impl Key for RouterInner {
+    type Value = Arc<RouterInner>;
 }
 
-impl<N, P> Handler for Router<N, P>
-    where N: TypeName + 'static,
-          P: TypePattern + 'static
-{
+impl Handler for Router {
     fn handle(&self, request: &mut Request) -> FerrumResult<Response> {
-        let path = request.url.path().join("/");
-
-        self.handle_method(request, &path).unwrap_or_else(||
+        self.handle_method(request).unwrap_or_else(||
             match request.method {
-                Method::Options => Ok(self.handle_options(&path)),
+                Method::Options => Ok(self.handle_options(request.uri.path())),
                 // For HEAD, fall back to GET. Hyper ensures no response body is written.
                 Method::Head => {
                     request.method = Method::Get;
-                    self.handle_method(request, &path).unwrap_or(
-                        Err(FerrumError::new(NoRoute, StatusCode::NotFound))
+                    self.handle_method(request).unwrap_or(
+                        Err(
+                            FerrumError::new(
+                                NoRoute,
+                                Some(Response::new()
+                                    .with_status(StatusCode::NotFound))
+                            )
+                        )
                     )
                 }
-                _ => Err(FerrumError::new(NoRoute, StatusCode::NotFound))
+                _ => Err(
+                    FerrumError::new(
+                        NoRoute,
+                        Some(Response::new()
+                                .with_status(StatusCode::NotFound))
+                    )
+                )
             }
         )
     }
@@ -399,7 +420,8 @@ mod test {
         assert!(router.recognize(&Method::Post, "/post").is_some());
         assert!(router.recognize(&Method::Get, "/post").is_some());
         assert!(router.recognize(&Method::Put, "/post").is_none());
-        assert!(router.recognize(&Method::Get, "/post/").is_none());
+        assert!(router.recognize(&Method::Get, "/post/").is_some());
+        assert!(router.recognize(&Method::Post, "/post/").is_some());
     }
 
     #[test]
@@ -426,8 +448,8 @@ mod test {
     #[test]
     fn test_wildcard_regression() {
         let mut router = Router::new();
-        router.options("*", |_: &mut Request| Ok(Response::new().with_content("", mime::TEXT_PLAIN)), "id1");
-        router.put("/upload/*filename", |_: &mut Request| Ok(Response::new().with_content("", mime::TEXT_PLAIN)), "id2");
+        router.options(".*", |_: &mut Request| Ok(Response::new().with_content("", mime::TEXT_PLAIN)), "id1");
+        router.put("/upload/{filename}", |_: &mut Request| Ok(Response::new().with_content("", mime::TEXT_PLAIN)), "id2");
         assert!(router.recognize(&Method::Options, "/foo").is_some());
         assert!(router.recognize(&Method::Put, "/foo").is_none());
         assert!(router.recognize(&Method::Put, "/upload/foo").is_some());
