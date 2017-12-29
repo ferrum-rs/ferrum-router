@@ -5,12 +5,11 @@
 //! `Router` provides fast and flexible routing for Ferrum.
 
 extern crate ferrum;
-//extern crate route_recognizer as recognizer;
 extern crate url;
 extern crate regex;
 
-//pub use router::{Router, NoRoute, TrailingSlash};
-//pub use recognizer::Params;
+pub use router::{Router, NoRoute, TrailingSlash};
+pub use recognizer::Params;
 //pub use url_for::url_for;
 
 mod router;

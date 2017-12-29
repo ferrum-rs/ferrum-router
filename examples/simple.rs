@@ -1,4 +1,3 @@
-/*
 extern crate ferrum;
 extern crate ferrum_router;
 
@@ -14,15 +13,15 @@ fn handler(_: &mut Request) -> FerrumResult<Response> {
 }
 
 fn query_handler(request: &mut Request) -> FerrumResult<Response> {
-    let ref query = request.extensions.get::<Router>()
-        .unwrap().find("query").unwrap_or("/");
-    Ok(Response::new().with_content(*query, mime::TEXT_PLAIN))
+    let params = request.extensions.get::<Router>().unwrap();
+    let query = params.get("query").map(|value| value.as_str()).unwrap_or("/");
+    Ok(Response::new().with_content(query, mime::TEXT_PLAIN))
 }
-*/
+
 fn main() {
-//    let mut router = Router::new();
-//    router.get("/", handler, "handler");
-//    router.get("/{query}", query_handler, "query_handler");
-//
-//    Ferrum::new(router).http("localhost:3000").unwrap();
+    let mut router = Router::new();
+    router.get("/", handler, "handler");
+    router.get("/{query}", query_handler, "query_handler");
+
+    Ferrum::new(router).http("localhost:3000").unwrap();
 }

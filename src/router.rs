@@ -7,8 +7,7 @@ use ferrum::{Request, Response, Handler, FerrumResult, FerrumError};
 use ferrum::{header, Method, StatusCode};
 use ferrum::typemap::Key;
 
-use recognizer::{Glob, GlobTypes, Recognizer, Recognize, RouteMatch, Params,
-                 Store, DefaultStore, DefaultStoreBuild, TypeName, TypePattern};
+use recognizer::{Glob, GlobTypes, Recognizer, Recognize, RouteMatch, Params};
 
 pub struct RouterInner {
     /// The routers, specialized by method.
@@ -86,11 +85,6 @@ impl Router {
 
         let glob = glob.into();
         let types = glob.types().map(|types| types.store());
-//        let types_default = DefaultStore::with_default_types();
-//        let types = match glob.types() {
-//            Some(types) => types.store(),
-//            None => &types_default,
-//        };
 
         self.mut_inner().routers
             .entry(method)
@@ -200,11 +194,6 @@ impl Router {
     {
         let glob = glob.into();
         let types = glob.types().map(|types| types.store());
-//        let types_default = DefaultStore::with_default_types();
-//        let types = match glob.types() {
-//            Some(types) => types.store(),
-//            None => &types_default,
-//        };
 
         self.mut_inner().wildcard.push(Recognizer::new(glob.path(), Box::new(handler), types).unwrap());
         self.route_id(route_id.as_ref(), glob.path());
@@ -248,43 +237,12 @@ impl Router {
         response
     }
 
-    // Tests for a match by adding or removing a trailing slash.
-//    fn redirect_slash(&self, request : &Request) -> Option<FerrumError> {
-//        let mut uri = request.uri.clone();
-//        let mut path: Vec<&str> = uri.path().split("/").collect();
-//
-//        if let Some(last_char) = path.chars().last() {
-//            {
-//                let mut path_segments = uri.as_mut().path_segments_mut().unwrap();
-//                if last_char == '/' {
-//                    // We didn't recognize anything without a trailing slash; try again with one appended.
-//                    path.pop();
-//                    path_segments.pop();
-//                } else {
-//                    // We didn't recognize anything with a trailing slash; try again without it.
-//                    path.push('/');
-//                    path_segments.push("");
-//                }
-//            }
-//        }
-//
-//        self.recognize(&request.method, &path.iter().collect()).and(Some(
-//            FerrumError::new(
-//                TrailingSlash,
-//                Some(Response::new_redirect(url)
-//                    .with_status(StatusCode::MovedPermanently))
-//            )
-//        ))
-//    }
-
     fn handle_method(&self, request: &mut Request) -> Option<FerrumResult<Response>> {
         if let Some(matched) = self.recognize(&request.method, request.uri.path()) {
             request.extensions.insert::<Router>(matched.params);
             request.extensions.insert::<RouterInner>(self.inner.clone());
             Some(matched.handler.handle(request))
         } else {
-//            self.redirect_slash(request)
-//                .and_then(|redirect| Some(Err(redirect)))
             None
         }
     }

@@ -49,6 +49,8 @@ impl Recognizer {
         let mut param_names = Vec::<String>::new();
         let mut pattern = "^".as_bytes().to_vec();
 
+        let identifier_regex = Regex::new("^[_a-zA-Z][_0-9a-zA-Z]*$").unwrap();
+
         let mut iter = glob.as_ref().iter();
         while let Some(&bch) = iter.next() {
             match bch {
@@ -60,27 +62,35 @@ impl Recognizer {
                     while let Some(&bch) = iter.next() {
                         match bch {
                             b' ' | b'\t' | b'\r' | b'\n' => continue,
-                            b':' => is_type = true,
+                            b':' if !is_type => is_type = true,
                             b'}' => {
                                 if param_name.len() > 0 || param_type.len() > 0 {
-                                    let param_type = String::from_utf8(if param_type.len() > 0 {
-                                        param_type.into()
+                                    let param_name = String::from_utf8(param_name)?;
+
+                                    let param_type = if param_type.len() > 0 {
+                                        String::from_utf8(param_type)?
                                     } else {
                                         param_name.clone()
-                                    })?;
+                                    };
 
-                                    let mut param_type_regex_string = String::from("(");
-                                    if let Some(regex_string) = types.get(param_type.as_str()) {
-                                        param_type_regex_string += regex_string.as_ref();
+                                    let regex_chunk = if param_name.len() > 0 && !identifier_regex.is_match(param_name.as_str()) {
+                                        "{".to_string() + param_name.as_str() + "}"
                                     } else {
-                                        param_type_regex_string += Type::STRING_PATTERN;
-                                    }
-                                    param_type_regex_string += ")";
-                                    pattern.extend(param_type_regex_string.as_bytes().iter());
+                                        let prefix = if param_name.len() > 0 {
+                                            let prefix = format!("(?P<{}>", param_name);
+                                            param_names.push(param_name);
+                                            prefix
+                                        } else {
+                                            "(".to_string()
+                                        };
 
-                                    if param_name.len() > 0 {
-                                        param_names.push(String::from_utf8(param_name)?)
-                                    }
+                                        prefix + if let Some(regex_pattern) = types.get(param_type.as_str()) {
+                                            regex_pattern.as_ref()
+                                        } else {
+                                            Type::STRING_PATTERN
+                                        } + ")"
+                                    };
+                                    pattern.extend(regex_chunk.as_bytes().iter());
                                 }
                                 break;
                             },
@@ -161,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_glob_single_params() {
+    fn parse_glob_single_param() {
         let mut types = Store::default();
         let (regex, params) = Recognizer::parse_glob("/posts/{name}", &types).unwrap();
 
