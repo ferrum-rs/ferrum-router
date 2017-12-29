@@ -77,12 +77,6 @@ impl Router {
               S: AsRef<[u8]>,
               T: GlobTypes,
     {
-        // regex with capture groups
-        // names of groups
-        // values of groups
-        // foo/{name}/{id:number} -> foo/([a-zA-Z_]+)/([0-9]+)
-        // {name: <value>, id: <value>}
-
         let glob = glob.into();
         let types = glob.types().map(|types| types.store());
 
