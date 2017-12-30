@@ -1,9 +1,9 @@
-Router
-======
+Ferrum Router
+=============
 
 > Routing handler for the [Ferrum](https://github.com/ferrum-rs/ferrun) web framework.
 
-Router is a fast, convenient, and flexible routing middleware for Ferrum. It
+Ferrum Router is a fast, convenient, and flexible routing middleware for Ferrum. It
 allows complex glob patterns and named url parameters and also allows handlers
 to be any Handler, including all Chains.
 
@@ -19,13 +19,14 @@ use ferrum_router::Router;
 fn main() {
     let mut router = Router::new();           // Alternative syntax:
     router.get("/", handler, "index");        // let router = router!(index: get "/" => handler,
-    router.get("/:query", handler, "query");  //                      query: get "/:query" => handler);
+    router.get("/{query}", handler, "query"); //                      query: get "/{query}" => handler);
 
     Ferrum::new(router).http("localhost:3000").unwrap();
 
     fn handler(request: &mut Request) -> FerrumResult<Response> {
-        let ref query = request.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
-        Ok(Response::new().with_content(*query, mime::TEXT_PLAIN))
+        let params = request.extensions.get::<Router>().unwrap();
+        let query = params.get("query").map(|value| value.as_str()).unwrap_or("/");
+        Ok(Response::new().with_content(query, mime::TEXT_PLAIN))
     }
 }
 ```
