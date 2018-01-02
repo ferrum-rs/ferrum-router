@@ -26,6 +26,7 @@ impl<T: AsRef<str> + Send + Sync> TypePattern for T {}
 pub type Store<N, P> = HashMap<N, P>;
 
 pub type DefaultStore = Store<NameDefaultType, PatternDefaultType>;
+
 pub trait DefaultStoreBuild {
     fn with_default_types() -> Self;
 }

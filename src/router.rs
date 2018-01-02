@@ -29,7 +29,7 @@ pub struct Router {
 impl Router {
     /// Construct a new, empty `Router`.
     ///
-    /// ```ignore
+    /// ```
     /// use ferrum_router::Router;
     /// let router = Router::new();
     /// ```
@@ -49,17 +49,17 @@ impl Router {
 
     /// Add a new route to a `Router`, matching both a method and glob pattern.
     ///
-    /// `route` supports glob patterns: `*` for a single wildcard segment and
-    /// `:param` for matching storing that segment of the request url in the `Params`
+    /// `route` supports glob patterns based on the rust regex and uses `{name}` (`{name: typename}`,
+    /// `{name: pattern}`) for matching storing named segment of the request url in the `Params`
     /// object, which is stored in the request `extensions`.
     ///
     /// For instance, to route `Get` requests on any route matching
-    /// `/users/:userid/:friend` and store `userid` and `friend` in
+    /// `/users/{userid:[0-9]+}/{friendid:[0-9]+}` and store `userid` and `friend` in
     /// the exposed Params object:
     ///
     /// ```ignore
     /// let mut router = Router::new();
-    /// router.route(Method::Get, "/users/:userid/:friendid", controller, "user_friend");
+    /// router.route(Method::Get, "/users/{userid:[0-9]+}/{friendid:[0-9]+}", controller, "user_friend");
     /// ```
     ///
     /// `route_id` is a unique name for your route, and is used when generating an URL with
@@ -293,21 +293,6 @@ impl fmt::Display for NoRoute {
 
 impl Error for NoRoute {
     fn description(&self) -> &str { "No Route" }
-}
-
-/// The error thrown by router if a request was redirected
-/// by adding or removing a trailing slash.
-#[derive(Debug, PartialEq, Eq)]
-pub struct TrailingSlash;
-
-impl fmt::Display for TrailingSlash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("The request had a trailing slash.")
-    }
-}
-
-impl Error for TrailingSlash {
-    fn description(&self) -> &str { "Trailing Slash" }
 }
 
 #[cfg(test)]

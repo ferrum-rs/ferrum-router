@@ -5,10 +5,10 @@ use regex::Regex;
 
 pub mod types;
 pub mod glob;
-pub mod route_match;
+pub mod matcher;
 pub use self::types::*;
 pub use self::glob::*;
-pub use self::route_match::*;
+pub use self::matcher::*;
 
 pub type RecognizerResult<T = Recognizer> = Result<T, Box<Error>>;
 
