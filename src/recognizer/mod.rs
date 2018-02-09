@@ -67,28 +67,34 @@ impl Recognizer {
                                 if param_name.len() > 0 || param_type.len() > 0 {
                                     let param_name = String::from_utf8(param_name)?;
 
-                                    let param_type = if param_type.len() > 0 {
-                                        String::from_utf8(param_type)?
-                                    } else {
-                                        param_name.clone()
-                                    };
-
                                     let regex_chunk = if param_name.len() > 0 && !identifier_regex.is_match(param_name.as_str()) {
                                         "{".to_string() + param_name.as_str() + "}"
                                     } else {
                                         let prefix = if param_name.len() > 0 {
                                             let prefix = format!("(?P<{}>", param_name);
-                                            param_names.push(param_name);
+                                            param_names.push(param_name.clone());
                                             prefix
                                         } else {
                                             "(".to_string()
                                         };
 
-                                        prefix + if let Some(regex_pattern) = types.get(param_type.as_str()) {
-                                            regex_pattern.as_ref()
+                                        let param_type = String::from_utf8(param_type)?;
+
+                                        let regex_type = if param_type.len() > 0 {
+                                            if let Some(regex_pattern) = types.get(param_type.as_str()) {
+                                                regex_pattern.as_ref()
+                                            } else {
+                                                param_type.as_str()
+                                            }
                                         } else {
-                                            Type::STRING_PATTERN
-                                        } + ")"
+                                            if let Some(regex_pattern) = types.get(param_name.as_str()) {
+                                                regex_pattern.as_ref()
+                                            } else {
+                                                Type::STRING_PATTERN
+                                            }
+                                        };
+
+                                        prefix + regex_type + ")"
                                     };
                                     pattern.extend(regex_chunk.as_bytes().iter());
                                 }
@@ -185,6 +191,20 @@ mod tests {
         assert!(regex.is_match("/posts/new/"));
         assert!(!regex.is_match("/posts/new/test"));
         assert_eq!(params, vec!["name".to_string()]);
+
+        let (regex, params) = Recognizer::parse_glob("/posts/{tail:.*}", &types).unwrap();
+
+        assert!(!regex.is_match(""));
+        assert!(!regex.is_match("test"));
+        assert!(!regex.is_match("/"));
+        assert!(!regex.is_match("/posts"));
+        assert!(regex.is_match("/posts/"));
+        assert!(regex.is_match("/posts//"));
+        assert!(regex.is_match("/posts/new"));
+        assert!(regex.is_match("/posts/new/"));
+        assert!(regex.is_match("/posts/new/test"));
+        assert!(regex.is_match("/posts/new/test/"));
+        assert_eq!(params, vec!["tail".to_string()]);
 
         let globs = vec![
             "/posts/{id}",
