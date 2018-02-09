@@ -176,45 +176,78 @@ mod test {
 
     #[test]
     fn test_replace_regex_captures() {
-        let mut params = HashMap::new();
-        let regex = Regex::new("").unwrap();
-        let source = "";
+        let samples = vec![
+            (
+                "",
+                vec![],
+                "",
+                ""
+            ),
+            (
+                "",
+                vec![],
+                "test",
+                "test"
+            ),
+            (
+                "(?P<first>[\\w]+),\\s(?P<second>[0-9]*)",
+                vec![],
+                "values: november, 12",
+                "values: november, 12"
+            ),
+            (
+                "(?P<first>[\\w]+),\\s(?P<second>[0-9]*)",
+                vec![("second", "42")],
+                "values: november, 12",
+                "values: november, 42"
+            ),
+            (
+                "(?P<first>[\\w]+),\\s(?P<second>[0-9]*)",
+                vec![("first", "test"), ("second", "42")],
+                "values: november, 12",
+                "values: test, 42"
+            ),
+            (
+                "(?P<first>[\\w]+),\\s(?P<second>[0-9]*)",
+                vec![("first", "test"), ("second", "42")],
+                "values: november, ",
+                "values: test, 42"
+            ),
+            (
+                "(?P<first>[\\w]+),\\s(?P<second>[0-9]*)",
+                vec![("first", "test"), ("second", "42")],
+                "(values: november, 12).",
+                "(values: test, 42)."
+            ),
+            (
+                "^/upload/(?P<first>[\\w]+)/(?P<second>[0-9]+)/?$",
+                vec![("first", "test"), ("second", "42")],
+                "/upload/data/99",
+                "/upload/test/42"
+            ),
+            (
+                "^/upload/(?P<first>[\\w]+)/(?P<second>[0-9]+)/?$",
+                vec![("first", "test"), ("second", "42")],
+                "/upload/data/1/",
+                "/upload/test/42/"
+            ),
+            (
+                "^/upload/(?P<first>[\\w]+)/(?P<second>[0-9]+)/?$",
+                vec![("first", "test"), ("second", "42")],
+                "/upload/",
+                "/upload/"
+            ),
+        ];
 
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("", result);
+        for (pattern, replacements, source, target) in samples {
+            let regex = Regex::new(pattern).unwrap();
+            let mut params = HashMap::new();
+            for (key, value) in replacements {
+                params.insert(key.into(), value.into());
+            }
 
-        let source = "test";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("test", result);
-
-        let regex = Regex::new("(?P<first>[\\w]+),\\s(?P<second>[0-9]*)").unwrap();
-        params.insert("first".to_string(), "test".to_string());
-        params.insert("second".to_string(), "42".to_string());
-
-        let source = "values: november, 12";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("values: test, 42", result);
-
-        let source = "values: november, ";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("values: test, 42", result);
-
-        let source = "(values: november, 12).";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("(values: test, 42).", result);
-
-        let regex = Regex::new("^/upload/(?P<first>[\\w]+)/(?P<second>[0-9]+)/?$").unwrap();
-
-        let source = "/upload/data/99";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("/upload/test/42", result);
-
-        let source = "/upload/data/1/";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("/upload/test/42/", result);
-
-        let source = "/upload/";
-        let result = replace_regex_captures(source, &regex, &mut params.clone());
-        assert_eq!("/upload/", result);
+            let result = replace_regex_captures(source, &regex, &mut params);
+            assert_eq!(target, result);
+        }
     }
 }
