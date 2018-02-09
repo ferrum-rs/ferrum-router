@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
+use regex::Regex;
 
 use ferrum::{Request, Response, Handler, FerrumResult, FerrumError};
 use ferrum::{header, Method, StatusCode};
@@ -16,8 +17,8 @@ pub struct RouterInner {
     /// Routes that accept any method.
     pub wildcard: Vec<Recognizer>,
 
-    /// Used in URL generation.
-    pub route_ids: HashMap<String, String>,
+    /// Used in URI generation.
+    pub route_ids: HashMap<String, Regex>,
 }
 
 /// `Router` provides an interface for creating complex routes as middleware
@@ -62,7 +63,7 @@ impl Router {
     /// router.route(Method::Get, "/users/{userid:[0-9]+}/{friendid:[0-9]+}", controller, "user_friend");
     /// ```
     ///
-    /// `route_id` is a unique name for your route, and is used when generating an URL with
+    /// `route_id` is a unique name for your route, and is used when generating an URI with
     /// `url_for`.
     ///
     /// The controller provided to route can be any `Handler`, which allows
@@ -79,25 +80,28 @@ impl Router {
     {
         let glob = glob.into();
         let types = glob.types().map(|types| types.store());
+        let recognizer = Recognizer::new(glob.path(), Box::new(handler), types).unwrap();
+
+        self.route_id(route_id.as_ref(), recognizer.glob_regex.clone());
 
         self.mut_inner().routers
             .entry(method)
             .or_insert(Vec::new())
-            .push(Recognizer::new(glob.path(), Box::new(handler), types).unwrap());
-        self.route_id(route_id.as_ref(), glob.path());
+            .push(recognizer);
         self
     }
 
-    fn route_id(&mut self, id: &str, glob: &[u8]) {
+    fn route_id(&mut self, id: &str, glob_regex: Regex) {
         let inner = self.mut_inner();
         let ref mut route_ids = inner.route_ids;
 
         match route_ids.get(id) {
-            Some(other_glob) if glob != other_glob.as_bytes() => panic!("Duplicate route_id: {}", id),
+            Some(other_glob_regex) if glob_regex.as_str() != other_glob_regex.as_str() =>
+                panic!("Duplicate route_id: {}", id),
             _ => ()
         };
 
-        route_ids.insert(id.to_string(), String::from_utf8_lossy(glob).to_string());
+        route_ids.insert(id.to_string(), glob_regex);
     }
 
     /// Like route, but specialized to the `Get` method.
@@ -188,9 +192,11 @@ impl Router {
     {
         let glob = glob.into();
         let types = glob.types().map(|types| types.store());
+        let recognizer = Recognizer::new(glob.path(), Box::new(handler), types).unwrap();
 
-        self.mut_inner().wildcard.push(Recognizer::new(glob.path(), Box::new(handler), types).unwrap());
-        self.route_id(route_id.as_ref(), glob.path());
+        self.route_id(route_id.as_ref(), recognizer.glob_regex.clone());
+
+        self.mut_inner().wildcard.push(recognizer);
         self
     }
 
@@ -297,8 +303,10 @@ impl Error for NoRoute {
 
 #[cfg(test)]
 mod test {
-    use super::Router;
+    use super::*;
+
     use ferrum::{header, mime, Method, Request, Response};
+    use recognizer::{DefaultStore, DefaultStoreBuild, Type};
 
     #[test]
     fn test_handle_options_post() {
@@ -306,9 +314,11 @@ mod test {
         router.post("/", |_: &mut Request| {
             Ok(Response::new().with_content("", mime::TEXT_PLAIN))
         }, "");
+
         let resp = router.handle_options("/");
         let headers = resp.headers.get::<header::Allow>().unwrap();
         let expected = header::Allow(vec![Method::Post]);
+
         assert_eq!(&expected, headers);
     }
 
@@ -318,9 +328,11 @@ mod test {
         router.get("/", |_: &mut Request| {
             Ok(Response::new().with_content("", mime::TEXT_PLAIN))
         }, "");
+
         let resp = router.handle_options("/");
         let headers = resp.headers.get::<header::Allow>().unwrap();
         let expected = header::Allow(vec![Method::Get, Method::Head]);
+
         assert_eq!(&expected, headers);
     }
 
@@ -367,6 +379,7 @@ mod test {
         router.put("/put", |_: &mut Request| {
             Ok(Response::new().with_content("", mime::TEXT_PLAIN))
         }, "");
+
         assert!(router.recognize(&Method::Patch, "/patch").is_none());
     }
 
@@ -385,10 +398,62 @@ mod test {
     #[test]
     fn test_wildcard_regression() {
         let mut router = Router::new();
-        router.options(".*", |_: &mut Request| Ok(Response::new().with_content("", mime::TEXT_PLAIN)), "id1");
-        router.put("/upload/{filename}", |_: &mut Request| Ok(Response::new().with_content("", mime::TEXT_PLAIN)), "id2");
+        router.options(".*", |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id1");
+        router.put("/upload/{filename}", |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id2");
+
         assert!(router.recognize(&Method::Options, "/foo").is_some());
         assert!(router.recognize(&Method::Put, "/foo").is_none());
         assert!(router.recognize(&Method::Put, "/upload/foo").is_some());
+    }
+
+    #[test]
+    fn test_glob_types() {
+        let mut router = Router::new();
+        let types = DefaultStore::with_default_types();
+
+        router.get(".*", |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id1");
+        router.post("/upload/{filename}", |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id2");
+        router.post(("/send/{id:number}", &types), |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id3");
+
+        assert!(router.recognize(&Method::Get, "/foo").is_some());
+        assert!(router.recognize(&Method::Post, "/foo").is_none());
+        assert!(router.recognize(&Method::Post, "/upload/foo").is_some());
+        assert!(router.recognize(&Method::Post, "/send/12").is_some());
+        assert!(router.recognize(&Method::Post, "/send/no").is_none());
+    }
+
+    #[test]
+    fn test_route_ids() {
+        let mut router = Router::new();
+        let types = DefaultStore::with_default_types();
+
+        router.get(".*", |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id1");
+        router.post("/upload/{filename}", |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id2");
+        router.post(("/send/{id:number}", &types), |_: &mut Request| {
+            Ok(Response::new().with_content("", mime::TEXT_PLAIN))
+        }, "id3");
+
+        let route_ids = &router.inner.route_ids;
+
+        assert_eq!(3, route_ids.len());
+        assert_eq!("^.*/?$", route_ids.get("id1").unwrap().as_str());
+        assert_eq!(
+            &format!("^/upload/(?P<filename>{})/?$", Type::STRING_PATTERN),
+            route_ids.get("id2").unwrap().as_str()
+        );
     }
 }
