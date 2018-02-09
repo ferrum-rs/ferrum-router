@@ -10,9 +10,9 @@ extern crate regex;
 
 pub use router::{Router, NoRoute};
 pub use recognizer::Params;
-//pub use url_for::url_for;
+pub use uri_for::{UriFor, uri_for, replace_regex_captures};
 
 mod router;
 mod recognizer;
 //mod macros;
-//mod url_for;
+mod uri_for;
