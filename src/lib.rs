@@ -14,5 +14,5 @@ pub use uri_for::{UriFor, uri_for, replace_regex_captures};
 
 mod router;
 mod recognizer;
-//mod macros;
+mod macros;
 mod uri_for;
