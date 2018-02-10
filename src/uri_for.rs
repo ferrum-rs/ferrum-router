@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use regex::Regex;
 
@@ -7,11 +7,11 @@ use ferrum::error::{HyperResult, HyperError};
 use router::RouterInner;
 
 pub trait UriFor {
-    fn replace(&self, glob_regex: &Regex, params: HashMap<String, String>) -> HyperResult<Uri>;
+    fn replace(&self, glob_regex: &Regex, params: BTreeMap<String, String>) -> HyperResult<Uri>;
 }
 
 impl UriFor for Uri {
-    fn replace(&self, glob_regex: &Regex, mut params: HashMap<String, String>) -> HyperResult<Uri> {
+    fn replace(&self, glob_regex: &Regex, mut params: BTreeMap<String, String>) -> HyperResult<Uri> {
         if self != "*" {
             let mut uri = String::new();
 
@@ -56,7 +56,7 @@ impl UriFor for Uri {
 ///
 /// `params` will be inserted as route parameters if fitting, the rest will be appended as query
 /// parameters.
-pub fn uri_for(request: &Request, route_id: &str, params: HashMap<String, String>) -> Uri {
+pub fn uri_for(request: &Request, route_id: &str, params: BTreeMap<String, String>) -> Uri {
     let inner = request.extensions.get::<RouterInner>()
         .expect("Couldn\'t find router set up properly.");
     let glob_regex = inner.route_ids.get(route_id)
@@ -68,7 +68,7 @@ pub fn uri_for(request: &Request, route_id: &str, params: HashMap<String, String
     }
 }
 
-pub fn replace_regex_captures(source: &str, regex: &Regex, params: &mut HashMap<String, String>) -> String {
+pub fn replace_regex_captures(source: &str, regex: &Regex, params: &mut BTreeMap<String, String>) -> String {
     let mut replacements = vec![];
 
     if let Some(captures) = regex.captures(source) {
@@ -152,6 +152,12 @@ mod test {
             ),
             (
                 "/{controller}/{action}/{id:[0-9]*}",
+                vec![("controller", "test"), ("action", "run"), ("id", "some")],
+                "http://localhost/foo/",
+                "http://localhost/foo/?action=run&controller=test&id=some"
+            ),
+            (
+                "/{controller}/{action}/{id:[0-9]*}",
                 vec![],
                 "http://localhost/foo/bar/baz",
                 "http://localhost/foo/bar/baz"
@@ -164,7 +170,7 @@ mod test {
 
             let uri: Uri = source_uri.parse().unwrap();
             let uri = uri.replace(&recognizer.glob_regex, {
-                let mut params = HashMap::new();
+                let mut params = BTreeMap::new();
                 for (key, value) in replacements_and_params {
                     params.insert(key.into(), value.into());
                 }
@@ -241,7 +247,7 @@ mod test {
 
         for (pattern, replacements, source, target) in samples {
             let regex = Regex::new(pattern).unwrap();
-            let mut params = HashMap::new();
+            let mut params = BTreeMap::new();
             for (key, value) in replacements {
                 params.insert(key.into(), value.into());
             }
