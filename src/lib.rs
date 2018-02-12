@@ -8,9 +8,9 @@ extern crate ferrum;
 extern crate url;
 extern crate regex;
 
-pub use router::{Router, NoRoute};
-pub use recognizer::Params;
-pub use uri_for::{UriFor, uri_for, replace_regex_captures};
+pub use router::{Router, NoRoute, Id};
+pub use recognizer::{Recognize, Recognizer, Params};
+pub use uri_for::{UriFor, uri_for};
 
 mod router;
 mod recognizer;

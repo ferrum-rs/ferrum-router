@@ -20,7 +20,7 @@ fn main() {
     };
 
     let mut router = Router::new();
-    router.get("/", handler, "index");
+    router.get("/", handler, None);
 
     Ferrum::new(router).http("localhost:3000").unwrap();
 }

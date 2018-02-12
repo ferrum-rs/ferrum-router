@@ -20,8 +20,8 @@ fn query_handler(request: &mut Request) -> FerrumResult<Response> {
 
 fn main() {
     let mut router = Router::new();
-    router.get("/", handler, "handler");
-    router.get("/{query}", query_handler, "query_handler");
+    router.get("/", handler, None);
+    router.get("/{query}", query_handler, None);
 
     Ferrum::new(router).http("localhost:3000").unwrap();
 }

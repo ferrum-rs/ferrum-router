@@ -10,7 +10,10 @@ use ferrum::{Ferrum, FerrumResult, mime, Request, Response};
 use ferrum_router::{Router};
 
 fn main() {
-    let router = router!(root: get "/" => handler, query: get "/{query}" => query_handler);
+    let router = router!(
+        get "/" => handler "root",
+        get "/{query}" => query_handler "query"
+    );
 
     Ferrum::new(router).http("localhost:3000").unwrap();
 
