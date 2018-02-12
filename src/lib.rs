@@ -12,7 +12,7 @@ pub use router::{Router, NoRoute, Id};
 pub use recognizer::{Recognize, Recognizer, Params};
 pub use uri_for::{UriFor, uri_for};
 
-mod router;
-mod recognizer;
-mod macros;
-mod uri_for;
+pub mod router;
+pub mod recognizer;
+pub mod macros;
+pub mod uri_for;

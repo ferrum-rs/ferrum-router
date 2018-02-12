@@ -4,7 +4,7 @@ Ferrum Router
 > Routing handler for the [Ferrum](https://github.com/ferrum-rs/ferrun) web framework.
 
 Ferrum Router is a fast, convenient, and flexible routing middleware for Ferrum. It
-allows complex glob patterns and named url parameters and also allows handlers
+allows complex glob regex patterns and named url parameters and also allows handlers
 to be any Handler, including all Chains.
 
 ## Example
@@ -14,12 +14,13 @@ extern crate ferrum;
 extern crate ferrum_router;
 
 use ferrum::*;
-use ferrum_router::Router;
+use ferrum_router::{Router, Id};
 
 fn main() {
-    let mut router = Router::new();           // Alternative syntax:
-    router.get("/", handler, "index");        // let router = router!(index: get "/" => handler,
-    router.get("/{query}", handler, "query"); //                      query: get "/{query}" => handler);
+    let mut router = Router::new();                     // Alternative syntax:
+                                                        // let router = router!(
+    router.get("/", handler, None);                     //     index: get "/" => handler,
+    router.get("/{query}", handler, Id::some("query")); //     query: get "/{query}" => handler "query");
 
     Ferrum::new(router).http("localhost:3000").unwrap();
 
