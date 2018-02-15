@@ -19,14 +19,15 @@ use ferrum_router::{Router, Id};
 fn main() {
     let mut router = Router::new();                     // Alternative syntax:
                                                         // let router = router!(
-    router.get("/", handler, None);                     //     index: get "/" => handler,
-    router.get("/{query}", handler, Id::some("query")); //     query: get "/{query}" => handler "query");
+    router.get("/", handler, None);                     //     get "/" => handler,
+    router.get("/{query}", handler, Id::some("query")); //     get "/{query}" => handler "query");
 
     Ferrum::new(router).http("localhost:3000").unwrap();
 
     fn handler(request: &mut Request) -> FerrumResult<Response> {
         let params = request.extensions.get::<Router>().unwrap();
         let query = params.get("query").map(|value| value.as_str()).unwrap_or("/");
+        
         Ok(Response::new().with_content(query, mime::TEXT_PLAIN))
     }
 }
